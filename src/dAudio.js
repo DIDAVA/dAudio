@@ -9,32 +9,31 @@
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 
 function dAudio(){
-  const nfo = {
-    src: null,
-    state: null,
-    autoplay: false,
-    startedAt: 0,
-    pausedAt: 0,
-    buffer: null,
-    type: null,
-    size: 0,
-    repeat: false,
-    normalizer: 1,
-    threshold: 0,
-    ratio: 1,
-    knee: 40,
-    remaster: true
-  };
+
+  let currentSrc = null,
+      currentState = null,
+      autoplay = false,
+      startedAt = 0,
+      pausedAt = 0,
+      currentBuffer = null,
+      fileType = null,
+      fileSize = 0,
+      repeat = false,
+      normalizerGain = 1,
+      compThreshold = 0,
+      compRatio = 1,
+      compKnee = 40,
+      remasterOn = true;
 
   // STATES
   const stateList = ['state','load','offline','online','ready','play','pause','stop','end'];
   stateList.forEach( state => this[`on${state}`] = null );
   const setState = (state, code = 0, message = null) => {
-    nfo.state = state;
+    currentState = state;
     if (typeof this.onstate === 'function') this.onstate({state, code, message});
     if (typeof this[`on${state}`] === 'function') this[`on${state}`]();
-    if (state === 'ready' && nfo.autoplay) { setState('autoplay'); play(); }
-    if (state === 'end' && nfo.repeat) { setState('repeat'); play(); }
+    if (state === 'ready' && autoplay) { setState('autoplay'); play(); }
+    if (state === 'end' && repeat) { setState('repeat'); play(); }
   };
 
   // CONTEXT
@@ -42,7 +41,7 @@ function dAudio(){
   const normalizer = ctx.createGain();
   const compressor = ctx.createDynamicsCompressor();
   compressor.attack.value = 1;
-  compressor.release.value = 0.5;
+  compressor.release.value = 0.25;
 
   const master = ctx.createGain();
   normalizer.connect(compressor).connect(master).connect(ctx.destination);
@@ -52,7 +51,7 @@ function dAudio(){
     ctx.decodeAudioData(
       arrBuf,
       buffer => {
-        nfo.buffer = buffer;
+        currentBuffer = buffer;
         remaster();
       },
       error => { console.log('dAudio Error:', error.message) }
@@ -61,37 +60,43 @@ function dAudio(){
 
   // SMART REMASTER
   const remasterSwitch = value => {
-    normalizer.gain.value = value ? nfo.normalizer : 1;
-    compressor.threshold.value = value ? nfo.threshold : 0;
-    compressor.ratio.value = value ? nfo.ratio : 1;
-    compressor.knee.value = value ? nfo.knee : 40;
-    nfo.remaster = value;
+    normalizer.gain.value = value ? normalizerGain : 1;
+    compressor.threshold.value = value ? compThreshold : 0;
+    compressor.ratio.value = value ? compRatio : 1;
+    compressor.knee.value = value ? compKnee : 40;
+    remasterOn = value;
+    console.log({
+      n: normalizerGain,
+      t: compThreshold,
+      r: compRatio,
+      k: compKnee
+    });
   };
-  remasterSwitch(nfo.remaster);
+  remasterSwitch(remasterOn);
 
   const remaster = () => {
     setState('remaster');
-    let sum = 0, peak = 0, avg = 0, channels = nfo.buffer.numberOfChannels;
+    let sum = 0, peak = 0, avg = 0, channels = currentBuffer.numberOfChannels;
     for (let channel = 0; channel < channels; channel++) {
-      nfo.buffer.getChannelData(channel).forEach( v => {
+      currentBuffer.getChannelData(channel).forEach( v => {
         sum += v > 0 ? v : -v;
         if (v > peak) { peak = v }
         else if (-v > peak) { peak = -v }
       });
     }
-    avg = sum / (nfo.buffer.length / channels);
-    nfo.normalizer = parseFloat((2 - peak).toFixed(2));
-    nfo.threshold = Math.floor( minmax(-50 * (1 - avg), -100, 0) );
-    nfo.ratio = Math.ceil( minmax(20 - (avg * 20), 1, 20) );
-    nfo.knee = Math.floor( minmax(40 - (avg * 20), 0, 40) );
+    avg = sum / (currentBuffer.length / channels);
+    normalizerGain = parseFloat((2 - peak).toFixed(2));
+    compThreshold = Math.floor( minmax(-50 * (1 - avg), -100, 0) );
+    compRatio = Math.ceil( minmax(20 - (avg * 20), 1, 20) );
+    compKnee = Math.floor( minmax(40 - (avg * 20), 0, 40) );
     remasterSwitch(true);
     stop(true);
     setState('ready');
   };
 
   // UTILITIES
-  const isAudio = () => { return nfo.type.match(/^audio\/[a-z0-9]+$/) };
-  const hasSize = () => { return nfo.size > 0 }
+  const isAudio = () => { return fileType.match(/^audio\/[a-z0-9]+$/) };
+  const hasSize = () => { return fileSize > 0 }
 
   const minmax = (value, min, max) => {
     if (value > max) { value = max }
@@ -103,8 +108,8 @@ function dAudio(){
   let source = null;
 
   const currentTime = () => {
-    if (nfo.pausedAt) return nfo.pausedAt;
-    if (nfo.startedAt) return ctx.currentTime - nfo.startedAt;
+    if (pausedAt) return pausedAt;
+    if (startedAt) return ctx.currentTime - startedAt;
     return 0;
   };
 
@@ -117,29 +122,29 @@ function dAudio(){
   const stop = (silent = false) => {
     if (!silent) setState('stop');
     if (source) resetSource();
-    nfo.startedAt = 0;
-    nfo.pausedAt = 0;
+    startedAt = 0;
+    pausedAt = 0;
   };
 
   const pause = (silent = false) => {
     if (source) {
       if (!silent) setState('pause');
       resetSource();
-      nfo.pausedAt = ctx.currentTime - nfo.startedAt;
+      pausedAt = ctx.currentTime - startedAt;
     }
   };
 
   const play = (silent = false) => {
-    if (!source && nfo.buffer) {
+    if (!source && currentBuffer) {
       if (!silent) setState('play');
       source = ctx.createBufferSource();
       source.connect(normalizer);
-      source.buffer = nfo.buffer;
-      source.start(0, nfo.pausedAt);
-      nfo.startedAt = ctx.currentTime - nfo.pausedAt;
-      nfo.pausedAt = 0;
+      source.buffer = currentBuffer;
+      source.start(0, pausedAt);
+      startedAt = ctx.currentTime - pausedAt;
+      pausedAt = 0;
       source.onended = () => {
-        if (currentTime() >= nfo.buffer.duration) {
+        if (currentTime() >= currentBuffer.duration) {
           stop();
           setState('end');
         }
@@ -151,10 +156,10 @@ function dAudio(){
     setState('seek');
     if (source) {
       pause(true);
-      nfo.pausedAt = offset;
+      pausedAt = offset;
       play(true);
     }
-    else nfo.pausedAt = offset;
+    else pausedAt = offset;
   };
 
   const playPause = () => {
@@ -167,9 +172,9 @@ function dAudio(){
     setState('load');
     if (src instanceof File) {
       setState('offline');
-      nfo.src = src.name;
-      nfo.type = src.type;
-      nfo.size = src.size;
+      currentSrc = src.name;
+      fileType = src.type;
+      fileSize = src.size;
       if (isAudio() && hasSize()) src.arrayBuffer().then( arrBuf => decode(arrBuf) );
       else setState('error', 1, 'Invalid Audio File');
     }
@@ -180,13 +185,13 @@ function dAudio(){
       xhr.onreadystatechange = () => {
         if (xhr.status >= 400) xhr.abort();
         else if (xhr.readyState === xhr.HEADERS_RECEIVED) {
-          nfo.type = xhr.getResponseHeader('content-type');
-          nfo.size = parseInt(xhr.getResponseHeader('content-length'));
+          fileType = xhr.getResponseHeader('content-type');
+          fileSize = parseInt(xhr.getResponseHeader('content-length'));
           if (!isAudio() || !hasSize()) xhr.abort();
         }
       };
       xhr.onload = () => {
-        nfo.src = src;
+        currentSrc = src;
         decode(xhr.response);
       }
       xhr.onabort = () => setState('error', 2, 'Loading Aborted');
@@ -199,24 +204,24 @@ function dAudio(){
   Object.defineProperties(dAudio.prototype, {
     state: {
       enumerable: true,
-      get(){ return nfo.state }
+      get(){ return currentState }
     },
     src: {
       enumerable: true,
-      get(){ return nfo.src },
+      get(){ return currentSrc },
       set(value){ load(value) }
     },
     type: {
       enumerable: true,
-      get(){ return nfo.type }
+      get(){ return fileType }
     },
     size: {
       enumerable: true,
-      get(){ return nfo.size }
+      get(){ return fileSize }
     },
     duration: {
       enumerable: true,
-      get(){ return nfo.buffer ? nfo.buffer.duration : 0 }
+      get(){ return currentBuffer ? currentBuffer.duration : 0 }
     },
     currentTime: {
       enumerable: true,
@@ -231,17 +236,17 @@ function dAudio(){
     },
     repeat: {
       enumerable: true,
-      get(){ return nfo.repeat },
-      set(value){ if (typeof value === 'boolean') nfo.repeat = value }
+      get(){ return repeat },
+      set(value){ if (typeof value === 'boolean') repeat = value }
     },
     autoplay: {
       enumerable: true,
-      get(){ return nfo.autoplay },
-      set(value){ if (typeof value === 'boolean') nfo.autoplay = value }
+      get(){ return autoplay },
+      set(value){ if (typeof value === 'boolean') autoplay = value }
     },
     remaster: {
       enumerable: true,
-      get(){ return nfo.remaster },
+      get(){ return remasterOn },
       set(value){ if (typeof value === 'boolean') remasterSwitch(value) }
     },
     volume: {
