@@ -1,2 +1,2 @@
 # dAudio
-Advanced Audio Object for Web
+Advanced Audio Object for web browsers

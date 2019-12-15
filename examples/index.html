@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>dAudio Demo | DIDAVA</title>
+</head>
+<body>
+  <div>
+    <span>Time: </span><span id="time">0</span>
+  </div>
+  <div>
+    <button id="playPause">Play / Pause</button>
+    <button id="play">Play</button>
+    <button id="pause">Pause</button>
+    <button id="stop">Stop</button>
+    <input id="file" type="file" accept="audio/*">
+  </div>
+  
+</body>
+<script src="../src/dAudio.js"></script>
+<script>
+  let audio = new dAudio();
+  audio.onstate = e => console.log(e.state);
+  audio.repeat = true;
+  audio.autoplay = true;
+  document.querySelector('#playPause').onclick = () => audio.playPause();
+  document.querySelector('#play').onclick = () => audio.play();
+  document.querySelector('#pause').onclick = () => audio.pause();
+  document.querySelector('#stop').onclick = () => audio.stop();
+  document.querySelector('#file').onchange = e => {
+    if (e.target.files.length) audio.src = e.target.files[0]
+  };
+  setInterval(()=>{
+    document.querySelector('#time').innerText = parseInt(audio.currentTime)
+  },1000);
+  console.log(audio);
+</script>
+</html>
