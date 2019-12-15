@@ -124,7 +124,7 @@ function dAudio(){
   };
 
   const play = (silent = false) => {
-    if (!source) {
+    if (!source && nfo.buffer) {
       if (!silent) setState('play');
       source = ctx.createBufferSource();
       source.connect(normalizer);
