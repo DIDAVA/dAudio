@@ -12,7 +12,6 @@ function dAudio(){
   const nfo = {
     src: null,
     state: null,
-    isPlaying: false,
     autoplay: false,
     startedAt: 0,
     pausedAt: 0,
@@ -24,7 +23,7 @@ function dAudio(){
     threshold: 0,
     ratio: 1,
     knee: 40,
-    remaster: false
+    remaster: true
   };
 
   // STATES
@@ -42,26 +41,57 @@ function dAudio(){
   const ctx = new AudioContext();
   const normalizer = ctx.createGain();
   const compressor = ctx.createDynamicsCompressor();
-  compressor.attack.value = compressor.attack.maxValue;
-  compressor.release.value = compressor.release.maxValue / 2;
+  compressor.attack.value = 1;
+  compressor.release.value = 0.5;
+
   const master = ctx.createGain();
   normalizer.connect(compressor).connect(master).connect(ctx.destination);
 
+  const decode = arrBuf => {
+    setState('decode');
+    ctx.decodeAudioData(
+      arrBuf,
+      buffer => {
+        nfo.buffer = buffer;
+        remaster();
+      },
+      error => { console.log('dAudio Error:', error.message) }
+    );
+  };
+
   // SMART REMASTER
   const remasterSwitch = value => {
-    normalizer.gain.value = value ? nfo.normalizer : normalizer.gain.defaultValue;
-    compressor.threshold.value = value ? nfo.threshold : compressor.threshold.maxValue;
-    compressor.ratio.value = value ? nfo.ratio : compressor.ratio.minValue;
-    compressor.knee.value = value ? nfo.knee : compressor.knee.maxValue;
+    normalizer.gain.value = value ? nfo.normalizer : 1;
+    compressor.threshold.value = value ? nfo.threshold : 0;
+    compressor.ratio.value = value ? nfo.ratio : 1;
+    compressor.knee.value = value ? nfo.knee : 40;
     nfo.remaster = value;
-    console.log('Remaster',{
-      n: nfo.normalizer,
-      t: nfo.threshold,
-      r: nfo.ratio,
-      k: nfo.knee
-    });
   };
   remasterSwitch(nfo.remaster);
+
+  const remaster = () => {
+    setState('remaster');
+    let sum = 0, peak = 0, avg = 0, channels = nfo.buffer.numberOfChannels;
+    for (let channel = 0; channel < channels; channel++) {
+      nfo.buffer.getChannelData(channel).forEach( v => {
+        sum += v > 0 ? v : -v;
+        if (v > peak) { peak = v }
+        else if (-v > peak) { peak = -v }
+      });
+    }
+    avg = sum / (nfo.buffer.length / channels);
+    nfo.normalizer = parseFloat((2 - peak).toFixed(2));
+    nfo.threshold = Math.floor( minmax(-50 * (1 - avg), -100, 0) );
+    nfo.ratio = Math.ceil( minmax(20 - (avg * 20), 1, 20) );
+    nfo.knee = Math.floor( minmax(40 - (avg * 20), 0, 40) );
+    remasterSwitch(true);
+    stop(true);
+    setState('ready');
+  };
+
+  // UTILITIES
+  const isAudio = () => { return nfo.type.match(/^audio\/[a-z0-9]+$/) };
+  const hasSize = () => { return nfo.size > 0 }
 
   const minmax = (value, min, max) => {
     if (value > max) { value = max }
@@ -69,28 +99,8 @@ function dAudio(){
     return value;
   };
 
-  const remaster = () => {
-    setState('remaster');
-    let sum = 0, peak = 0, avg = 0;
-    for (let c = 0; c < nfo.buffer.numberOfChannels; c++) {
-      nfo.buffer.getChannelData(c).forEach( v => {
-        sum += v > 0 ? v : -v;
-        if (v > peak) { peak = v }
-        else if (-v > peak) { peak = -v }
-      });
-    }
-    avg = sum / (nfo.buffer.length / nfo.buffer.numberOfChannels);
-    nfo.normalizer = parseFloat(((normalizer.gain.defaultValue * 2) - peak).toFixed(2));
-    const threshold = (normalizer.gain.defaultValue - avg) * (compressor.threshold.minValue / 2);
-    const ratio = compressor.ratio.maxValue - (avg * compressor.ratio.maxValue);
-    const knee = compressor.knee.maxValue - (avg * (compressor.knee.maxValue / 2));
-    nfo.threshold = Math.floor( minmax(threshold, compressor.threshold.minValue, compressor.threshold.maxValue) );
-    nfo.ratio = Math.ceil( minmax(ratio, compressor.ratio.minValue, compressor.ratio.maxValue) );
-    nfo.knee = Math.floor( minmax(knee, compressor.knee.minValue, compressor.knee.maxValue) );
-    remasterSwitch(true);
-    stop(true);
-    setState('ready');
-  };
+  // SOURCE AND PLAYER FUNCTIONS
+  let source = null;
 
   const currentTime = () => {
     if (nfo.pausedAt) return nfo.pausedAt;
@@ -98,14 +108,10 @@ function dAudio(){
     return 0;
   };
 
-  // SOURCE AND PLAYER FUNCTIONS
-  let source = null;
-
   const resetSource = () => {
     source.stop();
     source.disconnect(normalizer);
     source = null;
-    nfo.isPlaying = false;
   };
 
   const stop = (silent = false) => {
@@ -132,7 +138,6 @@ function dAudio(){
       source.start(0, nfo.pausedAt);
       nfo.startedAt = ctx.currentTime - nfo.pausedAt;
       nfo.pausedAt = 0;
-      nfo.isPlaying = true;
       source.onended = () => {
         if (currentTime() >= nfo.buffer.duration) {
           stop();
@@ -157,21 +162,7 @@ function dAudio(){
     else play();
   };
 
-  const decode = arrBuf => {
-    setState('decode');
-    ctx.decodeAudioData(
-      arrBuf,
-      buffer => {
-        nfo.buffer = buffer;
-        remaster();
-      },
-      error => { console.log('dAudio Error:', error.message) }
-    );
-  };
-
-  const isAudio = () => { return nfo.type.match(/^audio\/[a-z0-9]+$/) };
-  const hasSize = () => { return nfo.size > 0 }
-
+  // LOADER
   const load = src => {
     setState('load');
     if (src instanceof File) {
@@ -204,6 +195,7 @@ function dAudio(){
     }
   }
 
+  // PROPERTIES
   Object.defineProperties(dAudio.prototype, {
     state: {
       enumerable: true,
@@ -235,7 +227,7 @@ function dAudio(){
     },
     isPlaying: {
       enumerable: true,
-      get(){ return nfo.isPlaying }
+      get(){ return !!source }
     },
     repeat: {
       enumerable: true,
@@ -259,6 +251,7 @@ function dAudio(){
     }
   });
 
+  // METHODS
   dAudio.prototype.play = function(){ play() }
   dAudio.prototype.pause = function(){ pause() }
   dAudio.prototype.stop = function(){ stop() }
