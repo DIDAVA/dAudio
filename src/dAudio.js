@@ -139,7 +139,7 @@ function dAudio(setup = null){
     normalizerGain = parseFloat((2 - peak).toFixed(2));
     compThreshold = Math.floor( minmax(-50 * (1 - avg), -100, 0) );
     compRatio = Math.ceil( minmax(20 - (avg * 20), 1, 20) );
-    compKnee = Math.floor( minmax(40 - (avg * 15), 0, 40) );
+    compKnee = Math.floor( minmax(40 - (avg * 20), 0, 40) );
     remasterSwitch(remasterOn);
     stop(true);
     setState('ready');
