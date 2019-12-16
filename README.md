@@ -24,6 +24,7 @@ const audio = new dAudio({
 **Note:** You can change these properties after construction.
 
 ## Methods
+### play, pause, stop, playPause
 ```javascript
 audio.play(); // Starts playing audio track
 audio.pause(); // Pauses the playback
@@ -35,7 +36,7 @@ audio.playPause(); // Toggles between Play and Pause methods
 ### src
 Gets or sets the current audio source. Accepts `URL` or `Blob`.
 ```javascript
-let fileName = audio.src; // Gets the current file name (for Blobs) or URL
+const currentSource = audio.src; // Gets the current file name (for Blobs) or URL
 ```
 URL Source
 ```javascript
@@ -50,3 +51,47 @@ Blob Source
   };
 </script>
 ```
+
+### type, size, duration
+```javascript
+const fileType = audio.type; // Gets the current source `mime-type`
+const fileSize = audio.size; // Gets the current source size in `bytes`
+const fileDuration = audio.duration; // Gets the current source duration in `seconds`
+```
+
+### currentTime
+Gets the current playing time or seeks to your target time in `seconds`.
+```javascript
+const currentTime = audio.currentTime; // Gets the current playing time
+audio.currentTine = 10; // Seeks to target time (10 `seconds`)
+```
+
+### isPlaying
+Returns `true` if audio is playing or `false` if audio is paused or stopped.
+```javascript
+const isAudioPlaying = audio.isPlaying; // Gets the current playback state
+```
+
+### repeat, autoplay, remaster
+Turn on or off the functionalities.
+```javascript
+audio.repeat = false; // Turns off the repeat functionality
+audio.autoplay = true; // Turns on autoplay to start playing immediately when ready
+audio.remaster = true; // Turns audio remaster functionality on
+```
+
+### volume
+Sets or gets the output volume in `decibles (dB)`. Maximum value is `0` and minimum value is `-100`.
+```javascript
+const currentVolume = audio.volume; // Gets the current volume
+audio.volume = 0; // Sets the master volume to highest (0dB). 
+audio.volume = -100; // Sets the master volume to lowest (-100dB).
+```
+
+### state
+Gets the current state.
+```javascript
+const currentState = audio.state; // Gets the current audio state (load, play, pause, etc)
+```
+
+## State Management
