@@ -10,3 +10,43 @@ Have you ever experienced a playlist of your favorite songs from different decad
 * Smart Audio Remaster
 * 12 Band Standard Equalizer
 * Powerful State Callbacks
+
+## Get Started
+`dAudio` constructor receives an object to setup properly.
+```javascript
+const audio = new dAudio({
+  src: 'your_sound_file.mp3', // Audio source file to play.
+  remaster: true, // Turn the audio smart remaster functionality on or off.
+  repeat: true, // Repeat the audio track when it ends.
+  autoplay: true // Play the sound track immediately when ready.
+});
+```
+**Note:** You can change these properties after construction.
+
+### Methods
+```javascript
+audio.play(); // Starts playing audio track
+audio.pause(); // Pauses the playback
+audio.stop(); // Stops the playback
+audio.playPause(); // Toggles between Play and Pause methods
+```
+
+### Properties
+#### src
+Gets or sets the current audio source. Accepts `URL` or `Blob`.
+```javascript
+let fileName = audio.src; // Gets the current file name (for Blobs) or URL
+```
+URL Source
+```javascript
+audio.src = 'http://www.your-domain.com/audio.mp3'; // Sets the source from URL
+```
+Blob Source
+```html
+<input type="file" id="fileInput">
+<script>
+  document.querySelector('#fileInput').onchange = e => {
+    if (e.target.files.length) audio.src = e.target.files[0];
+  };
+</script>
+```

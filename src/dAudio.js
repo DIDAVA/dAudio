@@ -6,7 +6,7 @@
  * https://github.com/DIDAVA/dAudio
  */
 
-function dAudio(setup = null){
+function dAudio(setup = {}){
   let source = null,
       currentState = null,
       startedAt = 0,
