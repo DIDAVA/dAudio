@@ -14,6 +14,7 @@ function dAudio(setup = null){
       currentBuffer = null,
       fileType = null,
       fileSize = 0,
+      nodes = [],
       normalizerGain = 1,
       compThreshold = 0,
       compRatio = 1,
@@ -50,8 +51,21 @@ function dAudio(setup = null){
   ];
   if (compatibility.includes(false)) setState('error', 1, 'Incompatible Browser');
 
-  // CONTEXT
+  // UTILITIES
+  const todb = value => { return 20 * (0.43429 * Math.log(value)) };
+  const fromdb = value => { return Math.exp(value / 8.6858) };
+  const isAudio = () => { return fileType.match(/^audio\/[a-z0-9]+$/) };
+  const hasSize = () => { return fileSize > 0 }
+  const minmax = (value, min, max) => {
+    if (value > max) { value = max }
+    else if (value < min) { value = min }
+    return value;
+  };
+
+  // CONTEXT //
   const ctx = new AudioContext();
+
+  // REMASTER MODULE
   const normalizer = ctx.createGain();
   const compressor = ctx.createDynamicsCompressor();
   compressor.attack.value = 1;
@@ -59,8 +73,36 @@ function dAudio(setup = null){
   compressor.threshold.value = 0;
   compressor.ratio.value = 1;
   compressor.knee.value = 40;
+  nodes.push(normalizer, compressor);
+
+  // EQ MODULE
+  Object.defineProperty(this, 'eq', {
+    enumerable: true,
+    writable: true,
+    configurable: true,
+    value: {}
+  });
+  const octaves = [31,63,125,250,500,1000,2000,4000,8000,12000,16000,20000];
+  octaves.forEach( (freq, index) => {
+    const band = ctx.createBiquadFilter();
+    if (index == 0) band.type = 'lowshelf';
+    else if (index == octaves.length - 1) band.type = 'highshelf';
+    else band.type = 'peaking';
+    band.frequency.value = freq;
+    Object.defineProperty(this.eq, freq.toString().replace(/000$/, 'k') + 'Hz', {
+      enumerable: true,
+      get(){ return band.gain.value },
+      set(value){ if (typeof value === 'number') band.gain.value = minmax(value, -12, 3) } // 0.25 ~ 1.41
+    });
+    nodes.push(band);
+  });
+
+  // MASTER OUTPUT MODULE
   const master = ctx.createGain();
-  normalizer.connect(compressor).connect(master).connect(ctx.destination);
+  nodes.push(master, ctx.destination);
+
+  // CONNECTOR
+  nodes.forEach( (node, index) => { if (index != 0) nodes[index -1].connect(node) } );
 
   const decode = arrBuf => {
     setState('decode');
@@ -101,17 +143,6 @@ function dAudio(setup = null){
     remasterSwitch(remasterOn);
     stop(true);
     setState('ready');
-  };
-
-  // UTILITIES
-  const todb = value => { return 20 * (0.43429 * Math.log(value)) };
-  const fromdb = value => { return Math.exp(value / 8.6858) };
-  const isAudio = () => { return fileType.match(/^audio\/[a-z0-9]+$/) };
-  const hasSize = () => { return fileSize > 0 }
-  const minmax = (value, min, max) => {
-    if (value > max) { value = max }
-    else if (value < min) { value = min }
-    return value;
   };
 
   // SOURCE AND PLAYER FUNCTIONS
