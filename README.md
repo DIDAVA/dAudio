@@ -32,7 +32,7 @@ audio.playPause(); // Toggles between Play and Pause methods
 ```
 
 ## Properties
-#### src
+### src
 Gets or sets the current audio source. Accepts `URL` or `Blob`.
 ```javascript
 let fileName = audio.src; // Gets the current file name (for Blobs) or URL
