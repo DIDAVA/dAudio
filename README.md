@@ -23,7 +23,7 @@ const audio = new dAudio({
 ```
 **Note:** You can change these properties after construction.
 
-### Methods
+## Methods
 ```javascript
 audio.play(); // Starts playing audio track
 audio.pause(); // Pauses the playback
@@ -31,7 +31,7 @@ audio.stop(); // Stops the playback
 audio.playPause(); // Toggles between Play and Pause methods
 ```
 
-### Properties
+## Properties
 #### src
 Gets or sets the current audio source. Accepts `URL` or `Blob`.
 ```javascript
