@@ -6,35 +6,49 @@
  * https://github.com/DIDAVA/dAudio
  */
 
-const AudioContext = window.AudioContext || window.webkitAudioContext;
-
-function dAudio(){
-
-  let currentSrc = null,
+function dAudio(setup = null){
+  let source = null,
       currentState = null,
-      autoplay = false,
       startedAt = 0,
       pausedAt = 0,
       currentBuffer = null,
       fileType = null,
       fileSize = 0,
-      repeat = false,
       normalizerGain = 1,
       compThreshold = 0,
       compRatio = 1,
       compKnee = 40,
-      remasterOn = true;
+      remasterOn = typeof setup.remaster === 'boolean' ? setup.remaster : true,
+      currentSrc = typeof setup.src === 'string' ? setup.src : null,
+      autoplay = typeof setup.autoplay === 'boolean' ? setup.autoplay : false,
+      repeat = typeof setup.repeat === 'boolean' ? setup.repeat : false;
 
-  // STATES
-  const stateList = ['state','load','offline','online','ready','play','pause','stop','end'];
-  stateList.forEach( state => this[`on${state}`] = null );
-  const setState = (state, code = 0, message = null) => {
+  // STATE MANAGEMENT
+  const stateList = ['state','init','load','offline','online','decode','remaster','ready','play','pause','stop','end','autoplay','repeat','error'];
+  stateList.forEach(state => {
+    const stateName = `on${state}`;
+    if (typeof setup[stateName] === 'function') this[stateName] = setup[stateName];
+  });
+  
+  const setState = (state, code = 0, message = 'OK') => {
     currentState = state;
-    if (typeof this.onstate === 'function') this.onstate({state, code, message});
-    if (typeof this[`on${state}`] === 'function') this[`on${state}`]();
+    const response = {name: state, code, message};
+    if (typeof this.onstate === 'function') this.onstate(response);
+    if (typeof this[`on${state}`] === 'function') this[`on${state}`](response);
     if (state === 'ready' && autoplay) { setState('autoplay'); play(); }
     if (state === 'end' && repeat) { setState('repeat'); play(); }
   };
+  setState('init');
+
+  // CHECK COMPATIBILITY
+  let compatibility = [
+    typeof AudioContext === 'function',
+    typeof AudioBufferSourceNode === 'function',
+    typeof AudioDestinationNode === 'function',
+    typeof GainNode === 'function',
+    typeof DynamicsCompressorNode === 'function'
+  ];
+  if (compatibility.includes(false)) setState('error', 1, 'Incompatible Browser');
 
   // CONTEXT
   const ctx = new AudioContext();
@@ -42,10 +56,11 @@ function dAudio(){
   const compressor = ctx.createDynamicsCompressor();
   compressor.attack.value = 1;
   compressor.release.value = 0.25;
-
+  compressor.threshold.value = 0;
+  compressor.ratio.value = 1;
+  compressor.knee.value = 40;
   const master = ctx.createGain();
   normalizer.connect(compressor).connect(master).connect(ctx.destination);
-
   const decode = arrBuf => {
     setState('decode');
     ctx.decodeAudioData(
@@ -54,7 +69,7 @@ function dAudio(){
         currentBuffer = buffer;
         remaster();
       },
-      error => { console.log('dAudio Error:', error.message) }
+      error => setState('error', 2, 'Unsupported Audio Codec')
     );
   };
 
@@ -65,14 +80,7 @@ function dAudio(){
     compressor.ratio.value = value ? compRatio : 1;
     compressor.knee.value = value ? compKnee : 40;
     remasterOn = value;
-    console.log({
-      n: normalizerGain,
-      t: compThreshold,
-      r: compRatio,
-      k: compKnee
-    });
   };
-  remasterSwitch(remasterOn);
 
   const remaster = () => {
     setState('remaster');
@@ -89,7 +97,7 @@ function dAudio(){
     compThreshold = Math.floor( minmax(-50 * (1 - avg), -100, 0) );
     compRatio = Math.ceil( minmax(20 - (avg * 20), 1, 20) );
     compKnee = Math.floor( minmax(40 - (avg * 20), 0, 40) );
-    remasterSwitch(true);
+    remasterSwitch(remasterOn);
     stop(true);
     setState('ready');
   };
@@ -97,7 +105,6 @@ function dAudio(){
   // UTILITIES
   const isAudio = () => { return fileType.match(/^audio\/[a-z0-9]+$/) };
   const hasSize = () => { return fileSize > 0 }
-
   const minmax = (value, min, max) => {
     if (value > max) { value = max }
     else if (value < min) { value = min }
@@ -105,8 +112,6 @@ function dAudio(){
   };
 
   // SOURCE AND PLAYER FUNCTIONS
-  let source = null;
-
   const currentTime = () => {
     if (pausedAt) return pausedAt;
     if (startedAt) return ctx.currentTime - startedAt;
@@ -170,31 +175,37 @@ function dAudio(){
   // LOADER
   const load = src => {
     setState('load');
+    const fileError = 'Invalid Audio File'
     if (src instanceof File) {
       setState('offline');
       currentSrc = src.name;
       fileType = src.type;
       fileSize = src.size;
       if (isAudio() && hasSize()) src.arrayBuffer().then( arrBuf => decode(arrBuf) );
-      else setState('error', 1, 'Invalid Audio File');
+      else setState('error', 3, fileError);
     }
     else if (typeof src === 'string') {
       setState('online');
       const xhr = new XMLHttpRequest();
       xhr.responseType = 'arraybuffer';
       xhr.onreadystatechange = () => {
-        if (xhr.status >= 400) xhr.abort();
+        if (xhr.status >= 400) {
+          xhr.abort();
+          setState('error', 4, 'Audio File Not Found');
+        }
         else if (xhr.readyState === xhr.HEADERS_RECEIVED) {
           fileType = xhr.getResponseHeader('content-type');
           fileSize = parseInt(xhr.getResponseHeader('content-length'));
-          if (!isAudio() || !hasSize()) xhr.abort();
+          if (!isAudio() || !hasSize()) {
+            xhr.abort();
+            setState('error', 3, fileError);
+          }
         }
       };
       xhr.onload = () => {
         currentSrc = src;
         decode(xhr.response);
       }
-      xhr.onabort = () => setState('error', 2, 'Loading Aborted');
       xhr.open('GET', src, true);
       xhr.send();
     }
@@ -261,4 +272,6 @@ function dAudio(){
   dAudio.prototype.pause = function(){ pause() }
   dAudio.prototype.stop = function(){ stop() }
   dAudio.prototype.playPause = function(){ playPause() }
+
+  if (currentSrc) this.src = currentSrc;
 }
