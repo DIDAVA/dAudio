@@ -78,8 +78,8 @@ function dAudio(setup = null){
   // EQ MODULE
   Object.defineProperty(this, 'eq', {
     enumerable: true,
-    writable: true,
-    configurable: true,
+    writable: false,
+    configurable: false,
     value: {}
   });
   const octaves = [31,63,125,250,500,1000,2000,4000,8000,12000,16000,20000];
