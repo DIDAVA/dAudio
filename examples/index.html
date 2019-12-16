@@ -22,12 +22,13 @@
 <script src="../src/dAudio.js"></script>
 <script>
   let audio = new dAudio({
-    src: 'https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_1MG.mp3',
+    src: '',
     repeat: true,
     autoplay: true,
     remaster: true,
     onstate: e => console.log(e.name, e.name == 'error' ? `: ${e.message}(${e.code})` : ''),
   });
+  
   document.querySelector('#playPause').onclick = () => audio.playPause();
   document.querySelector('#play').onclick = () => audio.play();
   document.querySelector('#pause').onclick = () => audio.pause();

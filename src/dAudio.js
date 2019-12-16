@@ -19,7 +19,7 @@ function dAudio(setup = null){
       compRatio = 1,
       compKnee = 40,
       remasterOn = typeof setup.remaster === 'boolean' ? setup.remaster : true,
-      currentSrc = typeof setup.src === 'string' ? setup.src : null,
+      currentSrc = typeof setup.src === 'string' ? setup.src : '',
       autoplay = typeof setup.autoplay === 'boolean' ? setup.autoplay : false,
       repeat = typeof setup.repeat === 'boolean' ? setup.repeat : false;
 
