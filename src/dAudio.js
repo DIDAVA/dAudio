@@ -61,6 +61,7 @@ function dAudio(setup = null){
   compressor.knee.value = 40;
   const master = ctx.createGain();
   normalizer.connect(compressor).connect(master).connect(ctx.destination);
+  
   const decode = arrBuf => {
     setState('decode');
     ctx.decodeAudioData(
@@ -103,6 +104,8 @@ function dAudio(setup = null){
   };
 
   // UTILITIES
+  const todb = value => { return 20 * (0.43429 * Math.log(value)) };
+  const fromdb = value => { return Math.exp(value / 8.6858) };
   const isAudio = () => { return fileType.match(/^audio\/[a-z0-9]+$/) };
   const hasSize = () => { return fileSize > 0 }
   const minmax = (value, min, max) => {
@@ -262,8 +265,8 @@ function dAudio(setup = null){
     },
     volume: {
       enumerable: true,
-      get(){ return master.gain.value },
-      set(value){ if (typeof value === 'number') master.gain.value = minmax(value, 0, 1) }
+      get(){ return todb(master.gain.value) },
+      set(value){ if (typeof value === 'number') master.gain.value = fromdb(minmax(value, -100, 0)) }
     }
   });
 
