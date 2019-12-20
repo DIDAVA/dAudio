@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <v-content>
+        <v-container>
+          <v-sheet class="mx-auto pa-2 mb-2" max-width="500" elevation="1">
+            <div class="title">dAudio <span class="font-weight-thin">demo</span></div>
+            <v-file-input label="Click to load a file" accept="audio/*" v-model="file" @change="load()" solo dense flat hide-details clearable prepend-icon="mdi-file"></v-file-input>
+          </v-sheet>
+
+          <v-sheet class="mx-auto pa-3 mb-2" max-width="500" elevation="1" color="blue-grey darken-3" dark>
+            <div class="caption text-center">{{audio.src || 'No Audio'}}</div>
+            <div class="d-flex align-center">
+              <span class="pr-2 caption">{{current}}</span>
+              <v-slider hide-details dense min="0" :max="audio.duration || 1" :value="audio.currentTime" @change="value => audio.currentTime = value"></v-slider>
+              <span class="pl-2 caption">{{duration}}</span class="pr-2">
+            </div>
+
+            <div class="d-flex align-center justify-center">
+              <v-btn @click="audio.playPause()" icon large><v-icon x-large>{{audio.isPlaying ? 'mdi-pause-circle-outline' : 'mdi-play-circle-outline'}}</v-icon></v-btn>
+              <v-btn @click="audio.stop()" icon small><v-icon>mdi-stop-circle-outline</v-icon></v-btn>
+              
+              <v-spacer></v-spacer>
+              <v-btn icon @click="audio.repeat = !audio.repeat" :color="audio.repeat ? 'white' : 'blue-grey darken-1'" title="Repeat"><v-icon small>mdi-repeat</v-icon></v-btn>
+              <v-btn icon @click="audio.remaster = !audio.remaster" :color="audio.remaster ? 'white' : 'blue-grey darken-1'" title="Remaster"><v-icon small>mdi-auto-fix</v-icon></v-btn>
+              <v-btn icon @click="eq = !eq" title="Equalizer"><v-icon small>mdi-equalizer</v-icon></v-btn>
+            </div>
+
+            <v-expand-transition>
+              <div v-show="eq">
+                <v-row class="px-4">
+                  <v-col cols="1" class="px-0 mx-0" v-for="(gain, freq) in audio.eq">
+                    <v-slider v-model="audio.eq[freq]" min="-12" max="3" step="0.1"vertical hide-details dense></v-slider>
+                    <div class="caption text-center">{{freq.replace('Hz', '')}}</div>
+                  </v-col>
+                </v-row>
+              </div>
+            </v-expand-transition>
+
+          </v-sheet>
+        </v-container>
+      </v-content>
+    </v-app>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <script src="../dist/dAudio.min.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: {
+        audio: new dAudio({
+          autoplay: true,
+          remaster: true,
+          repeat: true,
+          onstate: state => console.log(state.name)
+        }),
+        file: null,
+        current: '--:--',
+        duration: '--:--',
+        eq: true,
+        time: 0
+      },
+      methods: {
+        load(){
+          if (this.file && this.file instanceof File) this.audio.src = this.file;
+        },
+        format(time){
+          if (!time) return '--:--';
+          const pad = (num, size) => { return ('000' + num).slice(size * -1) },
+          hours = Math.floor(time / 3600),
+          minutes = Math.floor(time / 60) % 60,
+          seconds = Math.floor(time - minutes * 60);
+          return `${hours ? pad(hours, 2)+':' : ''}${pad(minutes, minutes > 9 ? 2 : 1)}:${pad(seconds, 2)}`;
+        }
+      },
+      created(){
+        this.audio.onready = () => this.duration = this.format(this.audio.duration);
+        setInterval(()=>{
+          this.time = this.audio.currentTime;
+          this.current = this.format(this.audio.currentTime);
+        }, 1000);
+      }
+    })
+  </script>
+</body>
+</html>
